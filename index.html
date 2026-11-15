@@ -296,7 +296,7 @@ function start(payload){
   P=payload;T=P.tracks;K=P.sky;
   document.body.classList.remove('locked');$('#lock')&&$('#lock').remove();$('#app').innerHTML=P.html;$('#app').hidden=false;
   $('#rewind').addEventListener('click',rewind);
-  buildPaper();buildTracks();initSky();loadSpotify();dropNote();
+  buildPaper();buildTracks();initSky();loadSpotify();try{dropNote()}catch(e){}
   $('#openlink').href='https://open.spotify.com/playlist/'+P.playlist;
   scrollTo(0,0);requestAnimationFrame(loop);
 }
@@ -307,8 +307,9 @@ function dropNote(){
   const sq=s=>s.replace(/\s+/g,''),Q=S.map(sq),has=t=>{const r=sq(t);return Q.some(q=>r.includes(q))};
   const only=t=>{let r=sq(t);if(!r)return false;for(const q of Q)r=r.split(q).join('');return!r};
   const hits=[...app.querySelectorAll('*')].filter(el=>has(el.textContent)&&![...el.children].some(c=>has(c.textContent)));
+  const safe=el=>!el.id&&!el.querySelector('[id],canvas,svg,img,input,button,a,select,textarea');
   for(const el of hits){
-    if(only(el.textContent)){let x=el;while(x.parentElement&&x.parentElement!==app&&only(x.parentElement.textContent))x=x.parentElement;x.remove()}
+    if(only(el.textContent)&&safe(el))el.remove();
     else{const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);for(let n;n=w.nextNode();){let v=n.nodeValue.replace(/\s+/g,' ');for(const s of S)v=v.split(s).join('');n.nodeValue=v}}
   }
 }
