@@ -57,7 +57,7 @@ body.exploring #explore .timeline,body.exploring #explore details{pointer-events
   padding:24px clamp(18px,5vw,64px) calc(28px + var(--safe-b))}
 body:not(.gated) #gate{display:none}
 body.gated{overflow:hidden;height:100svh}
-body.gated #lock{visibility:hidden}
+body.gated #lock,body.resuming #lock{visibility:hidden}
 #gateform{display:grid;grid-template-columns:minmax(0,340px) auto;gap:10px 14px;margin-top:22px;background:var(--red);padding:14px 0 0;max-width:520px}
 #gateform label{display:flex;flex-direction:column;gap:6px;font-size:12px;letter-spacing:.02em}
 #gateform input{background:transparent;border:0;border-bottom:2px solid var(--ink);padding:6px 0 7px;font-size:16px;font-family:var(--mono);border-radius:0}
@@ -165,7 +165,7 @@ details p{font-family:var(--serif);font-size:15px;line-height:1.55}
 </style>
 </head>
 <body class="locked gated">
-<script>try{if(localStorage.getItem('gate')==='1')document.body.classList.remove('gated')}catch(e){}</script>
+<script>try{if(localStorage.getItem('gate')==='1')document.body.classList.remove('gated');if(localStorage.getItem('tape'))document.body.classList.add('resuming')}catch(e){}</script>
 <canvas id="wordgrid" aria-hidden="true"></canvas>
 <canvas id="sky" aria-label="A constellation of our conversations and the songs"></canvas>
 
@@ -262,10 +262,15 @@ $('#lockform').addEventListener('submit',async e=>{
   const ok=await attempt(passes);
   if(!ok){btn.disabled=false;btn.textContent='Open the tape';msg.textContent='One of those isn’t right yet. Check each answer and try again.';
     f.classList.remove('shake');void f.offsetWidth;f.classList.add('shake');return}
-  try{localStorage.setItem('tape',ok.p)}catch(e){}
+  // Opening straight from this handler leaves the sky blank, while opening on page load works,
+  // so save the key and reload. If storage is unavailable, open in place instead.
+  let saved=false;try{localStorage.setItem('tape',ok.p);saved=localStorage.getItem('tape')===ok.p}catch(e){}
+  if(saved){location.reload();return}
   start(JSON.parse(new TextDecoder().decode(ok.r)));
 });
-(async()=>{let p=null;try{p=localStorage.getItem('tape')}catch(e){}if(p){const r=await tryKey(p);if(r)start(JSON.parse(new TextDecoder().decode(r)))}})();
+(async()=>{let p=null;try{p=localStorage.getItem('tape')}catch(e){}
+  if(p){let r=null;try{r=await tryKey(p)}catch(e){}if(r){start(JSON.parse(new TextDecoder().decode(r)));return}try{localStorage.removeItem('tape')}catch(e){}}
+  document.body.classList.remove('resuming')})();
 
 /* ================= gate ================= */
 const GATE={s:'CTJhNF6rz6ZQmW6CXuwg9w==',h:'yC4hxMTW2cH0oHlcmU08KmTFLM91iliWaGiiDtNkjTo=',n:310000};
