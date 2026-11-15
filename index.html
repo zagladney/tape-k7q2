@@ -52,6 +52,20 @@ body.exploring #explore .timeline,body.exploring #explore details{pointer-events
 @keyframes shake{25%{transform:translateX(-7px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
 @media (max-width:720px){#lockform{grid-template-columns:1fr}.btn-px{justify-self:start}}
 
+/* ---------- gate ---------- */
+#gate{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:flex-end;
+  padding:24px clamp(18px,5vw,64px) calc(28px + var(--safe-b))}
+body:not(.gated) #gate{display:none}
+body.gated{overflow:hidden;height:100svh}
+body.gated #lock{visibility:hidden}
+#gateform{display:grid;grid-template-columns:minmax(0,340px) auto;gap:10px 14px;margin-top:22px;background:var(--red);padding:14px 0 0;max-width:520px}
+#gateform label{display:flex;flex-direction:column;gap:6px;font-size:12px;letter-spacing:.02em}
+#gateform input{background:transparent;border:0;border-bottom:2px solid var(--ink);padding:6px 0 7px;font-size:16px;font-family:var(--mono);border-radius:0}
+#gateform input:focus{outline:none;border-bottom-color:var(--paper)}
+#gatemsg{grid-column:1/-1;font-size:13px;min-height:1.4em;margin:0}
+#gateform.shake{animation:shake .35s}
+@media (max-width:720px){#gateform{grid-template-columns:1fr}}
+
 /* ---------- app ---------- */
 #app{position:relative;z-index:1}
 #app[hidden]{display:none}
@@ -150,9 +164,19 @@ details p{font-family:var(--serif);font-size:15px;line-height:1.55}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
-<body class="locked">
+<body class="locked gated">
+<script>try{if(localStorage.getItem('gate')==='1')document.body.classList.remove('gated')}catch(e){}</script>
 <canvas id="wordgrid" aria-hidden="true"></canvas>
 <canvas id="sky" aria-label="A constellation of our conversations and the songs"></canvas>
+
+<div id="gate">
+  <p class="poster-meta"><span>PRIVATE</span></p>
+  <form id="gateform" autocomplete="off">
+    <label>Password<input name="pw" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" required></label>
+    <button class="btn-px" id="gatebtn" type="submit">Enter</button>
+    <p id="gatemsg" role="status"></p>
+  </form>
+</div>
 
 <div id="lock">
   <h1 class="poster-title">FOR YOU</h1>
@@ -243,6 +267,21 @@ $('#lockform').addEventListener('submit',async e=>{
 });
 (async()=>{let p=null;try{p=localStorage.getItem('tape')}catch(e){}if(p){const r=await tryKey(p);if(r)start(JSON.parse(new TextDecoder().decode(r)))}})();
 
+/* ================= gate ================= */
+const GATE={s:'CTJhNF6rz6ZQmW6CXuwg9w==',h:'yC4hxMTW2cH0oHlcmU08KmTFLM91iliWaGiiDtNkjTo=',n:310000};
+if(document.body.classList.contains('gated'))try{$('#gateform input').focus()}catch(e){}
+$('#gateform').addEventListener('submit',async e=>{
+  e.preventDefault();const f=e.target,btn=$('#gatebtn'),msg=$('#gatemsg');
+  if(!window.crypto||!crypto.subtle){msg.textContent='This browser can’t open the tape. Try Safari or Chrome.';return}
+  btn.disabled=true;msg.textContent='';
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(f.pw.value.trim().toLowerCase()),'PBKDF2',false,['deriveBits']);
+  const got=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:b64(GATE.s),iterations:GATE.n,hash:'SHA-256'},km,256)),want=b64(GATE.h);
+  btn.disabled=false;
+  if(got.length===want.length&&got.every((v,i)=>v===want[i])){
+    document.body.classList.remove('gated');try{localStorage.setItem('gate','1')}catch(e){}
+  }else{msg.textContent='That’s not it. Try again.';f.pw.value='';f.classList.remove('shake');void f.offsetWidth;f.classList.add('shake')}
+});
+
 /* ================= app ================= */
 let P=null,T=[],K=null;
 const fmtD=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',year:'numeric'});
@@ -257,9 +296,21 @@ function start(payload){
   P=payload;T=P.tracks;K=P.sky;
   document.body.classList.remove('locked');$('#lock')&&$('#lock').remove();$('#app').innerHTML=P.html;$('#app').hidden=false;
   $('#rewind').addEventListener('click',rewind);
-  buildPaper();buildTracks();initSky();loadSpotify();
+  buildPaper();buildTracks();initSky();loadSpotify();dropNote();
   $('#openlink').href='https://open.spotify.com/playlist/'+P.playlist;
   scrollTo(0,0);requestAnimationFrame(loop);
+}
+
+// Removes two explainer sentences that live inside the encrypted content.
+function dropNote(){
+  const app=$('#app'),S=['Conversations that sound alike drift close together, and each song sits among the conversations it sounds most like.','Scroll and the tape follows you, one song at a time.'];
+  const sq=s=>s.replace(/\s+/g,''),Q=S.map(sq),has=t=>{const r=sq(t);return Q.some(q=>r.includes(q))};
+  const only=t=>{let r=sq(t);if(!r)return false;for(const q of Q)r=r.split(q).join('');return!r};
+  const hits=[...app.querySelectorAll('*')].filter(el=>has(el.textContent)&&![...el.children].some(c=>has(c.textContent)));
+  for(const el of hits){
+    if(only(el.textContent)){let x=el;while(x.parentElement&&x.parentElement!==app&&only(x.parentElement.textContent))x=x.parentElement;x.remove()}
+    else{const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);for(let n;n=w.nextNode();){let v=n.nodeValue.replace(/\s+/g,' ');for(const s of S)v=v.split(s).join('');n.nodeValue=v}}
+  }
 }
 
 function buildPaper(){
